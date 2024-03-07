@@ -91,3 +91,7 @@ export type BusStopSearchResult = {
     UpdateTime: string;
     VersionID: number;
 }
+
+export type BusOverlay = BusGeo & {
+    Stops: BusStops["Stops"];
+  };

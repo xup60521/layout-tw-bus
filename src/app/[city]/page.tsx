@@ -11,6 +11,8 @@ import Overlay from "./_components/Overlay";
 import { unstable_noStore } from "next/cache";
 import { getAllBus } from "@/server_action/getAllBus";
 import ReactQuery from "./_components/ReactQueryClient";
+import SyncState from "./_components/SyncState";
+import { Toaster } from "@/components/ui/toaster";
 
 const Map = dynamic(() => import("./_components/Map"), { ssr: false });
 
@@ -27,6 +29,7 @@ export default async function City({
   return (
     <main className="w-screen h-screen bg-slate-800 border-t-[1px] border-gray-300">
       <ReactQuery>
+        <SyncState />
         <ResizablePanelGroup direction="vertical">
           <ResizablePanel defaultSize={65}>
             <Map city={params.city} />
@@ -41,6 +44,7 @@ export default async function City({
           </ResizablePanel>
         </ResizablePanelGroup>
       </ReactQuery>
+      <Toaster />
     </main>
   );
 }

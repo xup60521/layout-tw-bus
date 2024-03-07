@@ -3,7 +3,12 @@
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
 import { searchStop } from "@/server_action/searchStop";
-import { busAtom, directionAtom, stationAtom } from "@/state/busState";
+import {
+  busAtom,
+  directionAtom,
+  overlayAtom,
+  stationAtom,
+} from "@/state/busState";
 import type { BusRoutePassBy, BusStopSearchResult } from "@/type/busType";
 import { useAtom, useAtomValue, useSetAtom } from "jotai";
 import Popup from "reactjs-popup";
@@ -22,27 +27,31 @@ import { SetAtom } from "@/type/setAtom";
 import { FiMenu } from "react-icons/fi";
 import { useQuery } from "@tanstack/react-query";
 import { getRoutePassBy } from "@/server_action/getRoutePassby";
+import { useOverlay } from "@/hook/useOverlay";
+import type { AppRouterInstance } from "next/dist/shared/lib/app-router-context.shared-runtime";
+import { useRouter } from "next/navigation";
 
 export default function Station({ city }: { city: string }) {
   const [open, setOpen] = useState(false);
   const station = useAtomValue(stationAtom);
-  const [direction, setDirection] = useAtom(directionAtom)
-  const [bus, setBus] = useAtom(busAtom)
+  const [direction, setDirection] = useAtom(directionAtom);
+  const [bus, setBus] = useAtom(busAtom);
+  const router = useRouter()
   const data = useQuery({
     queryKey: ["routePassBy"],
     queryFn: () => getRoutePassBy(city, station),
     enabled: !!station,
-    refetchInterval: 15000
-  })
+    refetchInterval: 15000,
+  });
 
-  useEffect(()=>{
-    data.refetch()
-  },[station])
+  useEffect(() => {
+    data.refetch();
+  }, [station]);
 
   return (
     <>
       <div className="w-full h-full flex flex-col min-h-0">
-        <div className="w-full box-border p-1 border-b-[1px] border-white flex gap-1 items-center h-14">
+        <div className="w-full box-border p-1 border-b-[1px] border-white flex gap-1 items-center h-12 min-h-0">
           <button
             onClick={() => setOpen(true)}
             className=" bg-transparent text-white py-1 flex-shrink-0 px-3 border-[1px] border-white rounded-md transition-all hover:bg-white hover:text-black "
@@ -50,12 +59,12 @@ export default function Station({ city }: { city: string }) {
             {station ? station : "選擇站牌..."}
           </button>
         </div>
-        <ScrollArea className="w-full h-full py-1">
+        <ScrollArea className="w-full h-full">
           <div className="flex w-full flex-col gap-1 p-1">
             <BusList
               bus={bus}
               direction={direction}
-            //   setPage={setPage}
+              //   setPage={setPage}
               list={data.data}
               setBus={setBus}
               setDirection={setDirection}
@@ -63,7 +72,7 @@ export default function Station({ city }: { city: string }) {
           </div>
         </ScrollArea>
       </div>
-      <PopupSetStation city={city} setOpen={setOpen} open={open} />
+      <PopupSetStation city={city} setOpen={setOpen} open={open} bus={bus} direction={direction} router={router} />
     </>
   );
 }
@@ -72,10 +81,16 @@ function PopupSetStation({
   open,
   setOpen,
   city,
+  bus,
+  direction,
+  router
 }: {
   open: boolean;
   setOpen: React.Dispatch<React.SetStateAction<boolean>>;
   city: string;
+  router: AppRouterInstance;
+  bus: string;
+  direction: string;
 }) {
   const [result, setResult] = useState<BusStopSearchResult[] | null>(null);
   const [loading, setLoading] = useState(false);
@@ -130,6 +145,7 @@ function PopupSetStation({
                       onClick={() => {
                         setOpen(false);
                         setStation(item);
+                        router.push(`?bus=${bus}&direction=${direction}&station=${item}`)
                       }}
                       key={`${item}`}
                       className="rounded-md p-2 py-3 transition-all hover:cursor-pointer hover:bg-slate-100"
@@ -162,9 +178,8 @@ const BusList = ({
   bus: string;
   direction: string;
 }) => {
-  // const [busOverlay] = useAtom(BusAtom.overlayAtom)
-
-  // const add_remove_overlay = useOverlay()
+  const busOverlay = useAtomValue(overlayAtom);
+  const add_remove_overlay = useOverlay();
 
   return (
     <>
@@ -174,9 +189,11 @@ const BusList = ({
             Number(RNN(a.RouteName.Zh_tw)) - Number(RNN(b.RouteName.Zh_tw))
         )
         .map((item) => {
-          // const isOverlayed = !!busOverlay.find(
-          //     (d) => d.RouteName.Zh_tw === item.RouteName.Zh_tw && item.Direction === Number(direction),
-          //   );
+          const isOverlayed = !!busOverlay.find(
+            (d) =>
+              d.RouteName.Zh_tw === item.RouteName.Zh_tw &&
+              item.Direction === Number(direction)
+          );
           return (
             <div
               key={`${item.Direction} ${item.RouteName.Zh_tw} ${item.StopSequence}`}
@@ -215,7 +232,7 @@ const BusList = ({
               </div>
               <DropdownMenu>
                 <DropdownMenuTrigger asChild>
-                <button className="bg-transparant h-fit  w-fit -translate-x-2 rounded border-[1px] border-white p-1 text-center font-bold text-white transition-all hover:bg-white hover:text-black">
+                  <button className="bg-transparant h-fit  w-fit -translate-x-2 rounded border-[1px] border-white p-1 text-center font-bold text-white transition-all hover:bg-white hover:text-black">
                     <FiMenu />
                   </button>
                 </DropdownMenuTrigger>
@@ -230,9 +247,14 @@ const BusList = ({
                   >
                     <span>查看路線</span>
                   </DropdownMenuItem>
-                  {/* {(bus===item.RouteName.Zh_tw && Number(direction) === item.Direction ) && <DropdownMenuItem onClick={add_remove_overlay}>
-                                <span>{isOverlayed ? "移除疊加路線" : "新增疊加路線"}</span>
-                            </DropdownMenuItem>} */}
+                  {bus === item.RouteName.Zh_tw &&
+                    Number(direction) === item.Direction && (
+                      <DropdownMenuItem onClick={add_remove_overlay}>
+                        <span>
+                          {isOverlayed ? "移除疊加路線" : "新增疊加路線"}
+                        </span>
+                      </DropdownMenuItem>
+                    )}
                 </DropdownMenuContent>
               </DropdownMenu>
             </div>
